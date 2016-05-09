@@ -242,7 +242,7 @@ public class Mesh
         return result;
     }
         
-    private static void SetCorrectMesh(Vector3 destination)
+    public static void SetCorrectMesh(Vector3 destination)
     {
         if (API.Me.ContinentID != currentContinent)
         {
@@ -326,7 +326,7 @@ public class Mesh
         {
             SetCorrectMesh(destination);
             Vector3[] route = GetFastestRoute(destination);
-
+            
             // Player is far away from custom mesh.. possible Stuck issues could occur. Issue warning!
             if (API.Me.Distance2DTo(route[0]) >= 15f)
             {
@@ -340,7 +340,7 @@ public class Mesh
                     Vector3[] route2 = GetFastestRoute(currentMesh[currentMesh.Length-1]);
                     for (int i = 0; i < route2.Length; i++)
                     {
-                        while(!API.CTM(route2[i]))
+                        while(!API.CTM(route2[i]) && API.Me.Distance2DTo(route2[i]) > 2f)
                         {
                             yield return 100;
                         }
@@ -358,15 +358,14 @@ public class Mesh
             // Navigating through CTM normally.
             for (int i = 0; i < result.Length - 1; i++)
             {
-                API.Print(result[i]);
-                while(!API.CTM(result[i]))
+                while(!API.CTM(result[i]) && API.Me.Distance2DTo(result[i]) > 2f)
                 {
                     yield return 100;
                 }
             }
         }
                     
-        while(!API.CTM(destination))
+        while(!API.CTM(destination) && API.Me.Distance2DTo(destination) > 2f)
         {
             yield return 250;
         }
@@ -379,8 +378,15 @@ public class Mesh
     public static Vector3[] GetFastestRoute(Vector3 destination)
     {
         // re-initialize
+        if (QH.IsInInstance())
+        {
+            return CreateStraightPath(currentMesh, destination);
+        }
+        else
+        {
+            return CreatePath(currentMesh,destination);
+        }
         
-        return CreatePath(currentMesh, destination);
         // sort hotspots so i can get closest 2.
         //currentmesh = insertionsorthotspots(currentmesh);
         
@@ -419,7 +425,64 @@ public class Mesh
         // }
     }
     
+    private static Vector3[] CreateStraightPath(Vector3[] hotspots, Vector3 destination)
+    {
+        int closestMeshNode = GetMeshIndex(hotspots, API.Me.Position);
+        int finalMeshNode = GetMeshIndex(hotspots, destination);
+        Vector3[] result;
+        int count = 0;
+
+        if (closestMeshNode == -1 || finalMeshNode == -1)
+        {
+            API.Print("Warning! Incorrect Mesh Trying to Be Parsed!");
+            return result = new Vector3[0];
+        }
+        
+        if (closestMeshNode < finalMeshNode)
+        {
+            result = new Vector3[finalMeshNode - closestMeshNode + 1];
+            // Forward through array.
+            for (int i = closestMeshNode; i <= finalMeshNode; i++)
+            {
+                result[count] = hotspots[i];
+                count++;
+            }
+        }
+        else
+        {
+            result = new Vector3[closestMeshNode - finalMeshNode + 1];
+            // Backwards through array.
+            for (int i = closestMeshNode; i >= finalMeshNode; i--)
+            {
+                result[count] = hotspots[i];
+                count++;
+            }
+        }
+        
+        return result;
+    }
     
+    // Method:          "GetMeshIndex(Vector3[] hotspots, Vector3 closestPosition)"
+    // What it Does:    Determines the position within the mesh array
+    public static int GetMeshIndex(Vector3[] hotspots, Vector3 closestPosition)
+    {
+        int index = 0;
+        Vector3 closestMeshNode = hotspots[0];
+        for (int i = 1; i < hotspots.Length - 1; i++)
+        {
+            if (hotspots[i].Distance2D(closestPosition) < closestMeshNode.Distance2D(closestPosition))
+            {
+                closestMeshNode = hotspots[i];
+                index = i;
+            }
+        }
+        if (closestMeshNode.Distance2D(closestPosition) >= 25f)
+        {
+            index = -1;
+        }
+        return index;
+    }
+        
     // Method:          "SortHotspots(Vector3[] hotspots, Vector3 destination)"
     private static Vector3[] CreatePath(Vector3[] hotspots, Vector3 destination)
     {
@@ -549,7 +612,7 @@ public class Mesh
     {
         API.DisableCombat = true;
         string result = ("Vector3[] hotspots = new Vector3[]{{");
-        int count = seconds * 3;
+        int count = seconds * 2;
         int index = 0;
         Vector3 currentPosition = API.Me.Position;
         Vector3 tempPosition = currentPosition;
@@ -563,9 +626,9 @@ public class Mesh
                 result += ("new Vector3(" + API.Me.Position.X + "f, " + API.Me.Position.Y + "f, " + API.Me.Position.Z + "f),");
                 currentPosition = tempPosition;
             }
-            yield return 333;
+            yield return 500;
             index++;
-            if (index % 9 == 0)
+            if (index % 6 == 0)
             {
                 if (!result.Equals("Vector3[] hotspots = new Vector3[]{{"))
                 {
